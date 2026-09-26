@@ -26,7 +26,7 @@ export async function onRequestPost(context) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: b64 } }] }],
-          generationConfig: { maxOutputTokens: 30, temperature: 0.3 }
+          generationConfig: { maxOutputTokens: 50, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } }
         })
       }
     );
