@@ -482,6 +482,7 @@ function setupDrawScreenAi() {
   const feed = $("guess-feed");
   feed.innerHTML = "";
   feed.classList.remove("hidden");
+  feed.classList.add("ai");
   $("guesser-bar").classList.add("hidden");
   $("draw-actions").style.display = "";
   $("btn-gotit").style.display = "none";
@@ -501,7 +502,7 @@ function startAiDraw() {
     else den.classList.add("hidden");
     updateScores();
     state.timeLeft = state.timeLimit;
-    aiStrokes = 0; aiAsking = false;
+    aiStrokes = 0; aiAsking = false; aiGuessCount = 0; aiUpdateLabel();
     aiFeed("Draw something and I'll start guessing! ✏️");
     clearInterval(state.timerId); clearInterval(aiTimer);
     tick();
@@ -510,14 +511,21 @@ function startAiDraw() {
     setTimeout(aiAsk, 4000); // first guess comes fast so it doesn't feel dead
   });
 }
-function aiFeed(text, correct) {
+function aiFeed(text, cls) {
   const feed = $("guess-feed");
   const div = document.createElement("div");
-  div.className = "guess" + (correct ? " correct" : "");
+  div.className = "guess" + (cls ? " " + cls : "");
   div.textContent = `🤖 ${text}`;
   feed.appendChild(div);
   while (feed.children.length > 30) feed.removeChild(feed.firstChild);
   feed.scrollTop = feed.scrollHeight;
+}
+let aiGuessCount = 0;
+function aiUpdateLabel() {
+  const lbl = $("draw-guesser-label");
+  lbl.textContent = aiGuessCount
+    ? `🤖 AI is guessing… (${aiGuessCount} ${aiGuessCount === 1 ? "guess" : "guesses"} so far)`
+    : "🤖 AI is guessing…";
 }
 function smallSnapshot() {
   const max = 512;
@@ -550,10 +558,11 @@ function aiAsk() {
         if (!guess) aiFeed("hmm… keep drawing, I'm thinking! 🤔");
         else if (normTxt(guess) === normTxt(state.word) ||
                  (state.wordEn && normTxt(guess) === normTxt(state.wordEn))) {
-          aiFeed(`“${cap(guess)}” — got it!`, true);
+          aiGuessCount++; aiUpdateLabel();
+          aiFeed(`Got it — “${cap(guess)}”! ✅`, "correct");
           aiEndRound("ai");
           return;
-        } else aiFeed(`“${cap(guess)}”?`);
+        } else { aiGuessCount++; aiUpdateLabel(); aiFeed(`My guess: “${cap(guess)}” ❌`, "wrong"); }
       }
     } catch (e) {
       aiFeed("my eyes glitched — keep drawing! 😅");
