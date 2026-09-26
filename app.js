@@ -465,7 +465,7 @@ function endRound(guessed) {
 
 /* ================= solo vs AI: you draw, the AI guesses ================= */
 const AI_GUESS_EVERY = 7; // seconds between AI guesses
-let aiTimer = null, aiAsking = false, aiStrokes = 0, aiWords = [];
+let aiTimer = null, aiAsking = false, aiStrokes = 0, aiWords = [], aiOver = false;
 
 function aiNextRound() {
   startReveal();
@@ -517,7 +517,7 @@ function startAiDraw() {
     else den.classList.add("hidden");
     updateScores();
     state.timeLeft = state.timeLimit;
-    aiStrokes = 0; aiAsking = false; aiGuessCount = 0; aiUpdateLabel();
+    aiStrokes = 0; aiAsking = false; aiGuessCount = 0; aiOver = false; aiUpdateLabel();
     aiFeed("Draw something and I'll start guessing! ✏️");
     clearInterval(state.timerId); clearInterval(aiTimer);
     tick();
@@ -575,7 +575,7 @@ function aiAsk() {
                  (state.wordEn && normTxt(guess) === normTxt(state.wordEn))) {
           aiGuessCount++; aiUpdateLabel();
           aiFeed(`Got it — “${cap(guess)}”! ✅`, "correct");
-          aiEndRound("ai");
+          setTimeout(() => aiEndRound("ai"), 1200); // let the ✅ show before the result
           return;
         } else { aiGuessCount++; aiUpdateLabel(); aiFeed(`My guess: “${cap(guess)}” ❌`, "wrong"); }
       }
@@ -586,6 +586,8 @@ function aiAsk() {
   })();
 }
 function aiEndRound(result) { // "ai" | "you" | "skip"
+  if (aiOver) return;
+  aiOver = true;
   clearInterval(state.timerId); clearInterval(aiTimer);
   if (result === "ai") state.scores[1]++;
   else if (result === "you") state.scores[0]++;
