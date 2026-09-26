@@ -93,7 +93,7 @@ const state = {
   wordEn: "",
   timerId: null,
   timeLeft: 0,
-  mode: "solo", // "solo" | "ai" (online uses net.active instead)
+  mode: "solo", // "solo" | "ai" | "aidraw" (online uses net.active instead)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -131,13 +131,16 @@ function pillGroup(id, cb) {
 
 $("btn-mode-solo").addEventListener("click", () => { state.mode = "solo"; showSetup("solo"); });
 $("btn-mode-ai").addEventListener("click", () => { state.mode = "ai"; showSetup("ai"); });
+$("btn-mode-aidraw").addEventListener("click", () => { state.mode = "aidraw"; showSetup("aidraw"); });
 function showSetup(mode) {
-  const ai = mode === "ai";
+  const ai = mode === "ai", aidraw = mode === "aidraw";
   $("setup-sub").textContent = ai
     ? "You draw, the AI tries to guess it. Stump it to score!"
+    : aidraw
+    ? "The AI sketches the word — you guess it! Great for learning Chinese."
     : "One phone. Take turns drawing, the other guesses out loud.";
-  $("name1-label").textContent = ai ? "Your name" : "Player 1";
-  $("name2-wrap").style.display = ai ? "none" : "";
+  $("name1-label").textContent = (ai || aidraw) ? "Your name" : "Player 1";
+  $("name2-wrap").style.display = (ai || aidraw) ? "none" : "";
   show("screen-setup");
 }
 $("btn-mode-online").addEventListener("click", () => {
@@ -160,6 +163,10 @@ $("btn-start").addEventListener("click", () => {
     state.names = [n1 || "You", "🤖 AI"];
     state.drawer = 0;
     aiNextRound();
+  } else if (state.mode === "aidraw") {
+    state.names = [n1 || "You", "🎨 AI"];
+    state.drawer = 1;
+    aidrawNextRound();
   } else {
     const n2 = $("name2").value.trim();
     state.names = [n1 || "Player 1", n2 || "Player 2"];
@@ -422,6 +429,10 @@ function tick() {
     if (state.timeLeft <= 0) aiEndRound("you"); // stumped the AI!
     return;
   }
+  if (state.mode === "aidraw") {
+    if (state.timeLeft <= 0) aidrawEndRound("ai"); // the AI stumped you!
+    return;
+  }
   updateHint(state.word, state.round, state.timeLimit - state.timeLeft);
   if (state.timeLeft <= 0) endRound(false);
 }
@@ -588,6 +599,127 @@ function aiEndRound(result) { // "ai" | "you" | "skip"
   $("btn-next").style.display = "";
   show("screen-result");
 }
+/* ================= AI draws, you guess ================= */
+let aidrawTimer = null, aidrawLoading = false, aidrawOver = false;
+
+function aidrawNextRound() {
+  state.round++;
+  drawWord();
+  startAidraw();
+}
+function startAidraw() {
+  show("screen-draw");
+  aidrawOver = false;
+  $("secret-word").classList.add("hidden"); // the word stays secret from the guesser!
+  $("hint-display").classList.add("hidden");
+  const lbl = $("draw-guesser-label");
+  lbl.textContent = "🎨 AI is drawing…";
+  lbl.classList.remove("hidden");
+  $("tools").style.display = "none";
+  const feed = $("guess-feed");
+  feed.innerHTML = "";
+  feed.classList.remove("hidden");
+  feed.classList.add("ai");
+  $("guesser-bar").classList.remove("hidden");
+  $("guess-input").value = "";
+  $("draw-actions").style.display = "";
+  $("btn-gotit").style.display = "none";
+  $("btn-skip").style.display = "";
+  canvas.style.pointerEvents = "none";
+  requestAnimationFrame(() => {
+    sizeCanvas();
+    $("draw-round").textContent = `Round ${state.round}/${state.rounds}`;
+    $("draw-cat").textContent = state.wordCat;
+    updateScores();
+    state.timeLeft = state.timeLimit;
+    aidrawLoading = true;
+    aiFeed("🎨 Thinking of what to draw…");
+    clearInterval(state.timerId); clearInterval(aidrawTimer);
+    tick();
+    state.timerId = setInterval(tick, 200);
+    aidrawFetch();
+  });
+}
+async function aidrawFetch() {
+  const drawThis = state.wordEn || state.word; // draw the meaning for Chinese words
+  try {
+    const r = await fetch("/api/draw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ word: drawThis })
+    });
+    if (state.mode !== "aidraw" || !$("screen-draw").classList.contains("active")) return;
+    const j = await r.json().catch(() => ({}));
+    aidrawLoading = false;
+    if (j.error === "missing_key") {
+      aiFeed("I need an API key to draw — ask Luke to add it! 🔑");
+    } else if (!j.strokes || !j.strokes.length) {
+      aiFeed("🎨 My pencil broke 😅 — tap Skip for a new word!");
+    } else {
+      aiFeed("✏️ Drawing… guess anytime!");
+      animateAidraw(j.strokes);
+    }
+  } catch (e) {
+    aidrawLoading = false;
+    if (state.mode !== "aidraw" || !$("screen-draw").classList.contains("active")) return;
+    aiFeed("🎨 My pencil broke 😅 — tap Skip for a new word!");
+  }
+}
+function animateAidraw(strokes) {
+  const sx = canvas.width / 400, sy = canvas.height / 300;
+  let i = 0;
+  clearInterval(aidrawTimer);
+  aidrawTimer = setInterval(() => {
+    if (state.mode !== "aidraw" || !$("screen-draw").classList.contains("active") || aidrawOver) {
+      clearInterval(aidrawTimer); return;
+    }
+    if (i >= strokes.length) {
+      clearInterval(aidrawTimer);
+      $("draw-guesser-label").textContent = "🔍 Done — what's your guess?";
+      return;
+    }
+    const pts = strokes[i++];
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = Math.max(3, 8 * Math.min(sx, sy));
+    ctx.beginPath();
+    pts.forEach((p, k) => { k ? ctx.lineTo(p[0] * sx, p[1] * sy) : ctx.moveTo(p[0] * sx, p[1] * sy); });
+    ctx.stroke();
+    $("draw-guesser-label").textContent = `🎨 AI is drawing… (${i}/${strokes.length})`;
+  }, 1200);
+}
+function aidrawGuess() {
+  const inp = $("guess-input");
+  const text = inp.value.trim();
+  if (!text || aidrawLoading || aidrawOver) return;
+  if (normTxt(text) === normTxt(state.word) ||
+      (state.wordEn && normTxt(text) === normTxt(state.wordEn))) {
+    aiFeed(`“${cap(text)}” — correct! ✅`, "correct");
+    inp.value = "";
+    aidrawOver = true; // lock so the timer can't also end the round
+    setTimeout(() => aidrawEndRound("you"), 900);
+  } else {
+    aiFeed(`“${cap(text)}” — nope, keep guessing! ❌`, "wrong");
+    inp.value = "";
+  }
+}
+function aidrawEndRound(result) { // "you" | "ai" | "skip"
+  if (aidrawOver && result !== "you") return;
+  aidrawOver = true;
+  clearInterval(state.timerId); clearInterval(aidrawTimer);
+  aidrawLoading = false;
+  if (result === "you") state.scores[0]++;
+  else if (result === "ai") state.scores[1]++;
+  if (state.round >= state.rounds) { gameOver(); return; }
+  const answer = state.wordEn ? `"${cap(state.word)}" — “${state.wordEn}”` : `"${cap(state.word)}"`;
+  $("result-emoji").textContent = result === "you" ? "🎉" : result === "ai" ? "🎨" : "⏭️";
+  $("result-title").textContent =
+    result === "you" ? "You got it!" : result === "ai" ? "The AI stumped you!" : "Skipped!";
+  $("result-sub").textContent =
+    result === "you" ? `Nice guessing — ${answer} it was!` : `The word was ${answer}.`;
+  $("btn-next").textContent = "Next round →";
+  $("btn-next").style.display = "";
+  show("screen-result");
+}
 $("btn-gotit").addEventListener("click", () => {
   if (net.active || state.mode === "ai") return;
   endRound(true);
@@ -595,11 +727,13 @@ $("btn-gotit").addEventListener("click", () => {
 $("btn-skip").addEventListener("click", () => {
   if (net.active) { netSkip(); return; }
   if (state.mode === "ai") { aiEndRound("skip"); return; }
+  if (state.mode === "aidraw") { aidrawEndRound("skip"); return; }
   endRound(false);
 });
 $("btn-next").addEventListener("click", () => {
   if (net.active) { netNextRound(); return; }
   if (state.mode === "ai") { aiNextRound(); return; }
+  if (state.mode === "aidraw") { aidrawNextRound(); return; }
   state.drawer = 1 - state.drawer;
   startReveal();
 });
@@ -623,6 +757,7 @@ $("btn-again").addEventListener("click", () => {
   state.round = 0; state.scores = [0, 0];
   buildDeck();
   if (state.mode === "ai") { state.drawer = 0; aiNextRound(); return; }
+  if (state.mode === "aidraw") { state.drawer = 1; aidrawNextRound(); return; }
   state.drawer = rnd(2);
   startReveal();
 });
@@ -1054,7 +1189,9 @@ function addGuessFeed(gu) {
 function submitGuess() {
   const inp = $("guess-input");
   const text = inp.value.trim();
-  if (!text || !net.active) return;
+  if (!text) return;
+  if (state.mode === "aidraw" && !net.active) { aidrawGuess(); return; }
+  if (!net.active) return;
   net.db.ref(`rooms/${net.code}/guesses`).push({ name: net.name, text, correct: false, ts: Date.now() });
   inp.value = "";
 }
