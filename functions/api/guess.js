@@ -12,7 +12,7 @@ export async function onRequestPost(context) {
     }
     const img = String(image);
     const b64 = img.includes(",") ? img.split(",")[1] : img;
-    const model = context.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const model = context.env.GEMINI_MODEL || "gemini-3.8-flash";
     const list = words.slice(0, 200).join(", ");
     const prompt =
       "You are playing a drawing guessing game. The image is a quick doodle drawn on a white canvas. " +
