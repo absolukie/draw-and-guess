@@ -160,3 +160,36 @@ button.ghost { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255
   padding: 0 22px; border: none; border-radius: 14px; font-size: 1rem; font-weight: 700;
   color: #fff; background: linear-gradient(135deg, #7c5cff, #b04dff); cursor: pointer;
 }
+
+/* ---- small-phone polish ---- */
+#screen-draw.active { height: calc(100vh - 32px); height: calc(100dvh - 32px); }
+@media (max-width: 480px) {
+  #app { padding: 12px; }
+  .card { padding: 22px 16px; border-radius: 20px; }
+  h1 { font-size: 1.65rem; }
+
+  /* draw screen: keep the header compact */
+  #draw-top { font-size: .82rem; gap: 8px; }
+  #draw-scores { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34vw; }
+  #secret-word { margin: 8px 0; }
+  #draw-word { font-size: 1.3rem; }
+
+  /* tools: one tidy scrollable row instead of a wrapped mess */
+  #tools { flex-wrap: nowrap; gap: 6px; margin: 8px 0; }
+  #colors { flex-wrap: nowrap; overflow-x: auto; min-width: 0; padding: 2px; scrollbar-width: none; }
+  #colors::-webkit-scrollbar { display: none; }
+  .swatch { width: 30px; height: 30px; flex: 0 0 auto; }
+  #sizes { flex: 0 0 auto; }
+  #sizes button { width: 34px; height: 34px; flex: 0 0 auto; }
+  #tools > button:not(.swatch) { width: 40px; height: 40px; flex: 0 0 auto; font-size: 1.05rem; border-radius: 12px; }
+
+  /* guesser UI stays compact so the canvas keeps its space */
+  #guess-feed { max-height: 76px; margin: 6px 0; }
+  #guesser-bar { margin: 2px 0 6px; }
+
+  /* lobby + misc */
+  #room-code { font-size: 2.3rem; }
+  .joinrow input { padding-left: calc(.3em + 8px); }
+  .word { font-size: 2.2rem; }
+  button.big { padding: 15px; }
+}
