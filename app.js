@@ -424,7 +424,7 @@ $("btn-new").addEventListener("click", () => {
 const net = {
   active: false, db: null, roomRef: null, gameRef: null,
   code: null, pid: null, name: "", isHost: false, isDrawer: false,
-  players: {}, game: null, settings: { rounds: 6, timeLimit: 60 },
+  players: {}, game: null, settings: { rounds: 6, timeLimit: 60, packs: null },
   timerId: null, strokes: [], unsubs: [],
 };
 
@@ -495,6 +495,37 @@ $("btn-copy").addEventListener("click", async () => {
 pillGroup("online-rounds", v => net.settings.rounds = v);
 pillGroup("online-time", v => net.settings.timeLimit = v);
 
+/* host picks word packs; synced to the room so the guest sees them too */
+function readOnlineCats() {
+  return [...$("online-cat-checks").querySelectorAll("label")]
+    .filter(l => l.querySelector("input").checked)
+    .map(l => l.textContent.trim());
+}
+function buildOnlineCatChecks() {
+  const box = $("online-cat-checks");
+  Object.keys(WORDS).forEach((cat, i) => {
+    const lab = document.createElement("label");
+    lab.className = "check" + (i < 2 ? " sel" : "");
+    lab.innerHTML = `<input type="checkbox"${i < 2 ? " checked" : ""}> ${cat}`;
+    lab.querySelector("input").addEventListener("change", (e) => {
+      if (!readOnlineCats().length) e.target.checked = true; // keep at least one pack
+      lab.classList.toggle("sel", e.target.checked);
+      net.settings.packs = readOnlineCats();
+      if (net.active && net.roomRef) net.roomRef.child("settings/packs").set(net.settings.packs);
+    });
+    box.appendChild(lab);
+  });
+  net.settings.packs = readOnlineCats();
+}
+function renderLobbyPacks() {
+  const el = $("lobby-packs");
+  const packs = (net.settings && net.settings.packs && net.settings.packs.length)
+    ? net.settings.packs : Object.keys(WORDS);
+  if (net.isHost) { el.classList.add("hidden"); return; }
+  el.textContent = `Word packs: ${packs.join(" · ")}`;
+  el.classList.remove("hidden");
+}
+
 function netEnterRoom(code, pid, name, isHost) {
   net.active = true; net.code = code; net.pid = pid; net.name = name; net.isHost = isHost;
   net.roomRef = net.db.ref("rooms/" + code);
@@ -513,8 +544,14 @@ function netEnterRoom(code, pid, name, isHost) {
     net.game = s.val() || { phase: "lobby" };
     netOnGame(net.game);
   });
+  const unsubS = net.roomRef.child("settings").on("value", (s) => {
+    const v = s.val();
+    if (v) { net.settings = v; renderLobbyPacks(); }
+  });
   net.unsubs.push(() => net.roomRef.child("players").off("value", unsubP));
   net.unsubs.push(() => net.gameRef.off("value", unsubG));
+  net.unsubs.push(() => net.roomRef.child("settings").off("value", unsubS));
+  renderLobbyPacks();
   window.addEventListener("beforeunload", netLeaveBeacon);
 }
 function netLeaveBeacon() {
@@ -575,7 +612,9 @@ function netShowReveal(g) {
   $("reveal-solo").classList.add("hidden");
   if (net.isDrawer) {
     if (!g.word) {
-      state.cats = Object.keys(WORDS);
+      const gp = g.settings && g.settings.packs;
+      state.cats = (gp && gp.length) ? gp.filter(c => WORDS[c]) : Object.keys(WORDS);
+      if (!state.cats.length) state.cats = Object.keys(WORDS);
       buildDeck(); drawWord();
       net.gameRef.update({ word: state.word, wordCat: state.wordCat, wordEn: state.wordEn });
     } else { state.word = g.word; state.wordCat = g.wordCat; state.wordEn = g.wordEn || ""; }
@@ -811,6 +850,7 @@ $("guess-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sub
 
 /* ================= init ================= */
 buildCatChecks();
+buildOnlineCatChecks();
 buildColors();
 pillGroup("rounds-pills", v => state.rounds = v);
 pillGroup("time-pills", v => state.timeLimit = v);
