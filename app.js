@@ -183,7 +183,8 @@ const stopDraw = (e) => {
   drawing = false;
   if (net.active && net.isDrawer && curPts && curPts.length) {
     const r = canvas.getBoundingClientRect();
-    netPushStroke({ pts: curPts, color: curColor, size: curSize / r.width });
+    // send points as [x, y] arrays (normalized 0..1) so the guesser can render them
+    netPushStroke({ pts: curPts.map(p => [p.x, p.y]), color: curColor, size: curSize / r.width });
   }
   curPts = null;
 };
