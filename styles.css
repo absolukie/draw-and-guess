@@ -198,3 +198,8 @@ button.ghost { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255
 .reveal-en { font-size: 1.15rem; opacity: .85; margin-top: 8px; }
 #draw-en { font-size: .95rem; opacity: .8; font-style: italic; }
 .lobby-packs { font-size: .9rem; opacity: .8; margin: 2px 0 10px; }
+.hint-display {
+  font-size: 1.35rem; font-weight: 800; letter-spacing: .12em; text-align: center;
+  margin: 2px 0 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #ffd97c;
+}

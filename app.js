@@ -171,6 +171,45 @@ function drawWord() {
 const normTxt = (t) => (t || "").toLowerCase().trim().replace(/\s+/g, "")
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+/* ---- letter hints: blanks up front, letters revealed as time passes ---- */
+const HINT_EVERY = 12; // seconds between letter reveals
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+// deterministic reveal order so drawer and guesser see the same letters
+function hintShown(word, round, elapsed) {
+  const letters = [...word].map((_, i) => i).filter(i => word[i] !== " ");
+  const rand = mulberry32(hashStr(word + "#" + round));
+  for (let i = letters.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [letters[i], letters[j]] = [letters[j], letters[i]];
+  }
+  const maxShow = Math.max(0, letters.length - 1); // never give away the whole word
+  return new Set(letters.slice(0, Math.min(Math.floor(elapsed / HINT_EVERY), maxShow)));
+}
+function renderHint(word, round, elapsed) {
+  const shown = hintShown(word, round, elapsed);
+  return [...word].map((ch, i) =>
+    ch === " " ? "  " : (shown.has(i) ? ch.toUpperCase() : "_")
+  ).join(" ");
+}
+function updateHint(word, round, elapsed) {
+  const el = $("hint-display");
+  if (!word) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  el.textContent = renderHint(word, round, elapsed);
+}
+
 /* ================= reveal ================= */
 function startReveal() {
   state.round++;
@@ -356,6 +395,7 @@ function tick() {
   $("timer-num").textContent = Math.ceil(state.timeLeft);
   $("timer-bar").style.width = (100 * state.timeLeft / state.timeLimit) + "%";
   $("timer-bar").classList.toggle("low", state.timeLeft <= 10);
+  updateHint(state.word, state.round, state.timeLimit - state.timeLeft);
   if (state.timeLeft <= 0) endRound(false);
 }
 function endRound(guessed) {
@@ -690,10 +730,12 @@ function netUpdateScores(g) {
 function netTick(g, s) {
   if (!net.game || net.game.phase !== "draw") { clearInterval(net.timerId); return; }
   const startAt = g.roundStartAt || Date.now();
-  const left = Math.max(0, s.timeLimit - (Date.now() - startAt) / 1000);
+  const elapsed = (Date.now() - startAt) / 1000;
+  const left = Math.max(0, s.timeLimit - elapsed);
   $("timer-num").textContent = Math.ceil(left);
   $("timer-bar").style.width = (100 * left / s.timeLimit) + "%";
   $("timer-bar").classList.toggle("low", left <= 10);
+  updateHint(g.word || "", g.round, elapsed);
   if (left <= 0 && net.isDrawer) netEndRound(false, null);
 }
 function netEndRound(guessed, byName) {
