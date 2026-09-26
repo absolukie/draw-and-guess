@@ -449,7 +449,7 @@ function endRound(guessed) {
 }
 
 /* ================= solo vs AI: you draw, the AI guesses ================= */
-const AI_GUESS_EVERY = 10; // seconds between AI guesses
+const AI_GUESS_EVERY = 7; // seconds between AI guesses
 let aiTimer = null, aiAsking = false, aiStrokes = 0, aiWords = [];
 
 function aiNextRound() {
@@ -507,6 +507,7 @@ function startAiDraw() {
     tick();
     state.timerId = setInterval(tick, 200);
     aiTimer = setInterval(aiAsk, AI_GUESS_EVERY * 1000);
+    setTimeout(aiAsk, 4000); // first guess comes fast so it doesn't feel dead
   });
 }
 function aiFeed(text, correct) {
@@ -571,6 +572,8 @@ function aiEndRound(result) { // "ai" | "you" | "skip"
     result === "ai" ? "AI got it!" : result === "you" ? "You stumped the AI!" : "Skipped!";
   $("result-sub").textContent = result === "ai"
     ? `Nice drawing — ${answer} it was.`
+    : result === "you"
+    ? `The word was ${answer}. You earned a point! 🎉`
     : `The word was ${answer}. No point this time.`;
   $("btn-next").textContent = "Next round →";
   $("btn-next").style.display = "";
