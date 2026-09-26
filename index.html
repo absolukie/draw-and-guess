@@ -23,6 +23,7 @@
       <p class="sub">The drawing party game. How do you want to play?</p>
       <button id="btn-mode-solo" class="big primary">📱 Same phone<br><span class="btn-sub">Pass it back and forth</span></button>
       <button id="btn-mode-online" class="big ghost">🌐 Online with a friend<br><span class="btn-sub">Each on your own phone</span></button>
+      <button id="btn-mode-ai" class="big ghost">🤖 Vs AI<br><span class="btn-sub">You draw, the AI guesses</span></button>
     </div>
   </section>
 
@@ -30,10 +31,10 @@
   <section id="screen-setup" class="screen">
     <div class="card">
       <h1>🎨 Draw &amp; Guess</h1>
-      <p class="sub">One phone. Take turns drawing, the other guesses out loud.</p>
+      <p class="sub" id="setup-sub">One phone. Take turns drawing, the other guesses out loud.</p>
       <div class="names">
-        <label>Player 1 <input id="name1" maxlength="16" value="Luke" autocomplete="off"></label>
-        <label>Player 2 <input id="name2" maxlength="16" value="Gabrielle" autocomplete="off"></label>
+        <label id="name1-wrap"><span id="name1-label">Player 1</span> <input id="name1" maxlength="16" value="Luke" autocomplete="off"></label>
+        <label id="name2-wrap"><span>Player 2</span> <input id="name2" maxlength="16" value="Gabrielle" autocomplete="off"></label>
       </div>
       <div class="opt-group">
         <span class="opt-label">Rounds</span>
@@ -116,9 +117,9 @@
   <section id="screen-reveal" class="screen">
     <div class="card">
       <div id="reveal-solo">
-        <p class="pass">📱 Hand the phone to</p>
+        <p class="pass" id="reveal-pass">📱 Hand the phone to</p>
         <h2 id="reveal-drawer">Luke</h2>
-        <p class="warn">Guesser, look away! 🙈</p>
+        <p class="warn" id="reveal-warn">Guesser, look away! 🙈</p>
       </div>
       <p id="reveal-online-wait" class="sub hidden"></p>
       <div id="reveal-hidden">

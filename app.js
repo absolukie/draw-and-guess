@@ -93,6 +93,7 @@ const state = {
   wordEn: "",
   timerId: null,
   timeLeft: 0,
+  mode: "solo", // "solo" | "ai" (online uses net.active instead)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -128,7 +129,17 @@ function pillGroup(id, cb) {
   });
 }
 
-$("btn-mode-solo").addEventListener("click", () => show("screen-setup"));
+$("btn-mode-solo").addEventListener("click", () => { state.mode = "solo"; showSetup("solo"); });
+$("btn-mode-ai").addEventListener("click", () => { state.mode = "ai"; showSetup("ai"); });
+function showSetup(mode) {
+  const ai = mode === "ai";
+  $("setup-sub").textContent = ai
+    ? "You draw, the AI tries to guess it. Stump it to score!"
+    : "One phone. Take turns drawing, the other guesses out loud.";
+  $("name1-label").textContent = ai ? "Your name" : "Player 1";
+  $("name2-wrap").style.display = ai ? "none" : "";
+  show("screen-setup");
+}
 $("btn-mode-online").addEventListener("click", () => {
   if (!initFirebase()) return;
   show("screen-online");
@@ -137,17 +148,24 @@ $("btn-setup-back").addEventListener("click", () => show("screen-mode"));
 $("btn-online-back").addEventListener("click", () => { netLeave(); show("screen-mode"); });
 
 $("btn-start").addEventListener("click", () => {
-  const n1 = $("name1").value.trim(), n2 = $("name2").value.trim();
-  state.names = [n1 || "Player 1", n2 || "Player 2"];
+  const n1 = $("name1").value.trim();
   state.cats = [...$("cat-checks").querySelectorAll("label")]
     .filter(l => l.querySelector("input").checked)
     .map(l => l.textContent.trim());
   if (!state.cats.length) state.cats = Object.keys(WORDS);
   state.round = 0;
-  state.drawer = rnd(2);
   state.scores = [0, 0];
   buildDeck();
-  startReveal();
+  if (state.mode === "ai") {
+    state.names = [n1 || "You", "🤖 AI"];
+    state.drawer = 0;
+    aiNextRound();
+  } else {
+    const n2 = $("name2").value.trim();
+    state.names = [n1 || "Player 1", n2 || "Player 2"];
+    state.drawer = rnd(2);
+    startReveal();
+  }
 });
 
 function buildDeck() {
@@ -167,9 +185,10 @@ function drawWord() {
   const { w, c, en } = state.deck.pop();
   state.word = w; state.wordCat = c; state.wordEn = en || "";
 }
-// strip accents/diacritics + spaces so "nǐ hǎo" matches "nihao"
-const normTxt = (t) => (t || "").toLowerCase().trim().replace(/\s+/g, "")
-  .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+// strip accents/diacritics, spaces & punctuation so "nǐ hǎo" matches "nihao"
+const normTxt = (t) => (t || "").toLowerCase().trim()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^a-z0-9]/g, "");
 
 /* ---- letter hints: blanks up front, letters revealed as time passes ---- */
 const HINT_EVERY = 12; // seconds between letter reveals
@@ -214,6 +233,8 @@ function updateHint(word, round, elapsed) {
 function startReveal() {
   state.round++;
   drawWord();
+  $("reveal-pass").textContent = "📱 Hand the phone to";
+  $("reveal-warn").classList.remove("hidden");
   $("reveal-solo").classList.remove("hidden");
   $("reveal-online-wait").classList.add("hidden");
   $("reveal-drawer").textContent = state.names[state.drawer];
@@ -232,6 +253,7 @@ $("btn-reveal").addEventListener("click", () => {
 });
 $("btn-draw-start").addEventListener("click", () => {
   if (net.active) netStartDraw();
+  else if (state.mode === "ai") startAiDraw();
   else startDraw();
 });
 
@@ -274,6 +296,7 @@ canvas.addEventListener("pointerdown", (e) => {
   if (net.active && !net.isDrawer) return;
   e.preventDefault();
   if (!net.active) snapshot();
+  if (state.mode === "ai" && !net.active) aiStrokes++;
   drawing = true; last = pos(e);
   curPts = net.active ? [npos(e)] : null;
   canvas.setPointerCapture(e.pointerId);
@@ -395,6 +418,10 @@ function tick() {
   $("timer-num").textContent = Math.ceil(state.timeLeft);
   $("timer-bar").style.width = (100 * state.timeLeft / state.timeLimit) + "%";
   $("timer-bar").classList.toggle("low", state.timeLeft <= 10);
+  if (state.mode === "ai") {
+    if (state.timeLeft <= 0) aiEndRound("you"); // stumped the AI!
+    return;
+  }
   updateHint(state.word, state.round, state.timeLimit - state.timeLeft);
   if (state.timeLeft <= 0) endRound(false);
 }
@@ -420,16 +447,147 @@ function endRound(guessed) {
     show("screen-result");
   }
 }
+
+/* ================= solo vs AI: you draw, the AI guesses ================= */
+const AI_GUESS_EVERY = 10; // seconds between AI guesses
+let aiTimer = null, aiAsking = false, aiStrokes = 0, aiWords = [];
+
+function aiNextRound() {
+  startReveal();
+  $("reveal-pass").textContent = "🤖 You draw, the AI guesses";
+  $("reveal-warn").classList.add("hidden");
+  aiWords = aiWordChoices();
+}
+function aiWordChoices() {
+  const cur = state.wordEn ? `${state.word} (${state.wordEn})` : state.word;
+  const set = new Set([cur]);
+  state.cats.forEach(c => WORDS[c].forEach(e => {
+    set.add(typeof e === "string" ? e : `${e.p} (${e.en})`);
+  }));
+  const others = [...set].filter(w => w !== cur);
+  for (let i = others.length - 1; i > 0; i--) {
+    const j = rnd(i + 1);
+    [others[i], others[j]] = [others[j], others[i]];
+  }
+  return [cur, ...others.slice(0, 149)];
+}
+function setupDrawScreenAi() {
+  $("secret-word").classList.remove("hidden");
+  $("hint-display").classList.add("hidden");
+  const lbl = $("draw-guesser-label");
+  lbl.textContent = "🤖 AI is guessing…";
+  lbl.classList.remove("hidden");
+  $("tools").style.display = "";
+  $("btn-undo").style.display = "";
+  const feed = $("guess-feed");
+  feed.innerHTML = "";
+  feed.classList.remove("hidden");
+  $("guesser-bar").classList.add("hidden");
+  $("draw-actions").style.display = "";
+  $("btn-gotit").style.display = "none";
+  $("btn-skip").style.display = "";
+  canvas.style.pointerEvents = "";
+}
+function startAiDraw() {
+  show("screen-draw");
+  setupDrawScreenAi();
+  requestAnimationFrame(() => {
+    sizeCanvas();
+    $("draw-round").textContent = `Round ${state.round}/${state.rounds}`;
+    $("draw-word").textContent = cap(state.word);
+    $("draw-cat").textContent = state.wordCat;
+    const den = $("draw-en");
+    if (state.wordEn) { den.textContent = `“${state.wordEn}”`; den.classList.remove("hidden"); }
+    else den.classList.add("hidden");
+    updateScores();
+    state.timeLeft = state.timeLimit;
+    aiStrokes = 0; aiAsking = false;
+    aiFeed("Draw something and I'll start guessing! ✏️");
+    clearInterval(state.timerId); clearInterval(aiTimer);
+    tick();
+    state.timerId = setInterval(tick, 200);
+    aiTimer = setInterval(aiAsk, AI_GUESS_EVERY * 1000);
+  });
+}
+function aiFeed(text, correct) {
+  const feed = $("guess-feed");
+  const div = document.createElement("div");
+  div.className = "guess" + (correct ? " correct" : "");
+  div.textContent = `🤖 ${text}`;
+  feed.appendChild(div);
+  while (feed.children.length > 30) feed.removeChild(feed.firstChild);
+  feed.scrollTop = feed.scrollHeight;
+}
+function smallSnapshot() {
+  const max = 512;
+  const scale = Math.min(1, max / Math.max(canvas.width, canvas.height));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(canvas.width * scale));
+  c.height = Math.max(1, Math.round(canvas.height * scale));
+  c.getContext("2d").drawImage(canvas, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+function aiAsk() {
+  if (state.mode !== "ai" || !$("screen-draw").classList.contains("active")) return;
+  if (aiAsking || !aiStrokes) return;
+  aiAsking = true;
+  aiFeed("studying your drawing… 👀");
+  (async () => {
+    try {
+      const r = await fetch("/api/guess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: smallSnapshot(), words: aiWords })
+      });
+      if (!$("screen-draw").classList.contains("active")) return; // round already over
+      const j = await r.json().catch(() => ({}));
+      if (j.error === "missing_key") {
+        aiFeed("I need an API key to play — ask Luke to add it! 🔑");
+        clearInterval(aiTimer);
+      } else {
+        const guess = (j.guess || "").trim();
+        if (!guess) aiFeed("hmm… keep drawing, I'm thinking! 🤔");
+        else if (normTxt(guess) === normTxt(state.word) ||
+                 (state.wordEn && normTxt(guess) === normTxt(state.wordEn))) {
+          aiFeed(`“${cap(guess)}” — got it!`, true);
+          aiEndRound("ai");
+          return;
+        } else aiFeed(`“${cap(guess)}”?`);
+      }
+    } catch (e) {
+      aiFeed("my eyes glitched — keep drawing! 😅");
+    }
+    aiAsking = false;
+  })();
+}
+function aiEndRound(result) { // "ai" | "you" | "skip"
+  clearInterval(state.timerId); clearInterval(aiTimer);
+  if (result === "ai") state.scores[1]++;
+  else if (result === "you") state.scores[0]++;
+  if (state.round >= state.rounds) { gameOver(); return; }
+  const answer = state.wordEn ? `"${cap(state.word)}" — “${state.wordEn}”` : `"${cap(state.word)}"`;
+  $("result-emoji").textContent = result === "ai" ? "🤖" : "🎉";
+  $("result-title").textContent =
+    result === "ai" ? "AI got it!" : result === "you" ? "You stumped the AI!" : "Skipped!";
+  $("result-sub").textContent = result === "ai"
+    ? `Nice drawing — ${answer} it was.`
+    : `The word was ${answer}. No point this time.`;
+  $("btn-next").textContent = "Next round →";
+  $("btn-next").style.display = "";
+  show("screen-result");
+}
 $("btn-gotit").addEventListener("click", () => {
-  if (net.active) return;
+  if (net.active || state.mode === "ai") return;
   endRound(true);
 });
 $("btn-skip").addEventListener("click", () => {
   if (net.active) { netSkip(); return; }
+  if (state.mode === "ai") { aiEndRound("skip"); return; }
   endRound(false);
 });
 $("btn-next").addEventListener("click", () => {
   if (net.active) { netNextRound(); return; }
+  if (state.mode === "ai") { aiNextRound(); return; }
   state.drawer = 1 - state.drawer;
   startReveal();
 });
@@ -451,8 +609,9 @@ function gameOver() {
 $("btn-again").addEventListener("click", () => {
   if (net.active) { netPlayAgain(); return; }
   state.round = 0; state.scores = [0, 0];
-  state.drawer = rnd(2);
   buildDeck();
+  if (state.mode === "ai") { state.drawer = 0; aiNextRound(); return; }
+  state.drawer = rnd(2);
   startReveal();
 });
 $("btn-new").addEventListener("click", () => {
