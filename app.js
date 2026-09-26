@@ -68,16 +68,20 @@ const WORDS = {
   ]
 };
 
-/* Firebase backend for online multiplayer (draw-and-guess project) */
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAxb1FHk36Ie4VB1674775KSm-FVNf4BZQ",
-  authDomain: "draw-and-guess-eeebf.firebaseapp.com",
-  databaseURL: "https://draw-and-guess-eeebf-default-rtdb.firebaseio.com/",
-  projectId: "draw-and-guess-eeebf",
-  storageBucket: "draw-and-guess-eeebf.firebasestorage.app",
-  messagingSenderId: "493074134000",
-  appId: "1:493074134000:web:4fee7330b880ebec006335"
-};
+/* Firebase backend for online multiplayer (draw-and-guess project).
+   The config is served at runtime by /api/config from Cloudflare env vars —
+   never hardcode keys in this repo. */
+let FIREBASE_CONFIG = null;
+async function ensureFirebaseConfig() {
+  if (FIREBASE_CONFIG) return true;
+  try {
+    const r = await fetch("/api/config");
+    const j = await r.json();
+    if (!j.apiKey) return false;
+    FIREBASE_CONFIG = j;
+    return true;
+  } catch (e) { return false; }
+}
 
 const state = {
   names: ["Luke", "Gabrielle"],
@@ -143,8 +147,8 @@ function showSetup(mode) {
   $("name2-wrap").style.display = (ai || aidraw) ? "none" : "";
   show("screen-setup");
 }
-$("btn-mode-online").addEventListener("click", () => {
-  if (!initFirebase()) return;
+$("btn-mode-online").addEventListener("click", async () => {
+  if (!await initFirebase()) return;
   show("screen-online");
 });
 $("btn-setup-back").addEventListener("click", () => show("screen-mode"));
@@ -774,10 +778,10 @@ const net = {
   timerId: null, strokes: [], unsubs: [],
 };
 
-function initFirebase() {
+async function initFirebase() {
   try {
     if (typeof firebase === "undefined") { onlineError("Couldn't reach the game server. Check your connection and try again."); return false; }
-    if (!FIREBASE_CONFIG.apiKey) { onlineError("Online play isn't configured yet — try again in a bit."); return false; }
+    if (!await ensureFirebaseConfig()) { onlineError("Online play isn't configured yet — try again in a bit."); return false; }
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     net.db = firebase.database();
     return true;
