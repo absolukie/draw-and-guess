@@ -2,7 +2,70 @@ const WORDS = {
   "🍕 Food & Drink": ["pizza","sushi","taco","spaghetti","hamburger","pancake","ice cream","donut","sandwich","popcorn","watermelon","banana","strawberry","pineapple","coffee","cupcake","cheese","fried egg","bacon","hot dog","fries","salad","soup","cake","cookie","bread","apple","grapes","carrot","avocado"],
   "🐶 Animals": ["dog","cat","elephant","lion","tiger","monkey","giraffe","zebra","kangaroo","penguin","fish","shark","octopus","butterfly","bee","spider","snake","frog","rabbit","horse","cow","pig","chicken","duck","owl","bear","fox","deer","mouse","whale"],
   "🏠 Everyday": ["chair","table","lamp","phone","book","key","umbrella","shoe","hat","glasses","clock","mirror","candle","pillow","toothbrush","scissors","guitar","camera","bicycle","car","airplane","boat","train","house","door","window","bed","sofa","wallet","backpack"],
-  "🏃 Actions": ["running","swimming","dancing","singing","cooking","reading","writing","driving","flying","climbing","jumping","sleeping","eating","laughing","crying","painting","skiing","surfing","fishing","hiking","shopping","cleaning","brushing teeth","waving","clapping","sneezing","yawning","texting","juggling","yoga"]
+  "🏃 Actions": ["running","swimming","dancing","singing","cooking","reading","writing","driving","flying","climbing","jumping","sleeping","eating","laughing","crying","painting","skiing","surfing","fishing","hiking","shopping","cleaning","brushing teeth","waving","clapping","sneezing","yawning","texting","juggling","yoga"],
+  "🈶 Chinese": [
+    { p: "nihao", en: "hello" },
+    { p: "xiexie", en: "thank you" },
+    { p: "zaijian", en: "goodbye" },
+    { p: "duibuqi", en: "sorry" },
+    { p: "meiguanxi", en: "it's okay" },
+    { p: "qing", en: "please" },
+    { p: "wo", en: "I / me" },
+    { p: "ni", en: "you" },
+    { p: "ta", en: "he / she" },
+    { p: "women", en: "we / us" },
+    { p: "tamen", en: "they" },
+    { p: "yi", en: "one" },
+    { p: "er", en: "two" },
+    { p: "san", en: "three" },
+    { p: "si", en: "four" },
+    { p: "wu", en: "five" },
+    { p: "liu", en: "six" },
+    { p: "qi", en: "seven" },
+    { p: "ba", en: "eight" },
+    { p: "jiu", en: "nine" },
+    { p: "shi", en: "ten" },
+    { p: "shenme", en: "what" },
+    { p: "shei", en: "who" },
+    { p: "nar", en: "where" },
+    { p: "zenme", en: "how" },
+    { p: "duoshao", en: "how much" },
+    { p: "you", en: "to have" },
+    { p: "qu", en: "to go" },
+    { p: "lai", en: "to come" },
+    { p: "chi", en: "to eat" },
+    { p: "he", en: "to drink" },
+    { p: "kan", en: "to look" },
+    { p: "shuo", en: "to speak" },
+    { p: "xuexi", en: "to study" },
+    { p: "xihuan", en: "to like" },
+    { p: "ai", en: "to love" },
+    { p: "mai", en: "to buy" },
+    { p: "ren", en: "person" },
+    { p: "pengyou", en: "friend" },
+    { p: "jia", en: "home / family" },
+    { p: "xuexiao", en: "school" },
+    { p: "laoshi", en: "teacher" },
+    { p: "xuesheng", en: "student" },
+    { p: "shu", en: "book" },
+    { p: "shui", en: "water" },
+    { p: "fan", en: "rice / meal" },
+    { p: "cha", en: "tea" },
+    { p: "baba", en: "dad" },
+    { p: "mama", en: "mom" },
+    { p: "gege", en: "older brother" },
+    { p: "didi", en: "younger brother" },
+    { p: "jiejie", en: "older sister" },
+    { p: "meimei", en: "younger sister" },
+    { p: "jintian", en: "today" },
+    { p: "mingtian", en: "tomorrow" },
+    { p: "zuotian", en: "yesterday" },
+    { p: "hao", en: "good" },
+    { p: "da", en: "big" },
+    { p: "xiao", en: "small" },
+    { p: "duo", en: "many" },
+    { p: "hen", en: "very" }
+  ]
 };
 
 /* Firebase backend for online multiplayer (draw-and-guess project) */
@@ -27,6 +90,7 @@ const state = {
   scores: [0, 0],
   word: "",
   wordCat: "",
+  wordEn: "",
   timerId: null,
   timeLeft: 0,
 };
@@ -88,7 +152,10 @@ $("btn-start").addEventListener("click", () => {
 
 function buildDeck() {
   let pool = [];
-  state.cats.forEach(c => WORDS[c].forEach(w => pool.push({ w, c })));
+  state.cats.forEach(c => WORDS[c].forEach(e => {
+    if (typeof e === "string") pool.push({ w: e, c });
+    else pool.push({ w: e.p, c, en: e.en }); // Chinese pack: pinyin + English meaning
+  }));
   for (let i = pool.length - 1; i > 0; i--) {
     const j = rnd(i + 1);
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -97,9 +164,12 @@ function buildDeck() {
 }
 function drawWord() {
   if (!state.deck.length) buildDeck();
-  const { w, c } = state.deck.pop();
-  state.word = w; state.wordCat = c;
+  const { w, c, en } = state.deck.pop();
+  state.word = w; state.wordCat = c; state.wordEn = en || "";
 }
+// strip accents/diacritics + spaces so "nǐ hǎo" matches "nihao"
+const normTxt = (t) => (t || "").toLowerCase().trim().replace(/\s+/g, "")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 /* ================= reveal ================= */
 function startReveal() {
@@ -115,6 +185,9 @@ function startReveal() {
 $("btn-reveal").addEventListener("click", () => {
   $("reveal-cat").textContent = state.wordCat;
   $("reveal-word").textContent = cap(state.word);
+  const en = $("reveal-en");
+  if (state.wordEn) { en.textContent = `💬 means “${state.wordEn}” — draw it!`; en.classList.remove("hidden"); }
+  else en.classList.add("hidden");
   $("reveal-hidden").classList.add("hidden");
   $("reveal-shown").classList.remove("hidden");
 });
@@ -255,6 +328,9 @@ function startDraw() {
     $("draw-round").textContent = `Round ${state.round}/${state.rounds}`;
     $("draw-word").textContent = cap(state.word);
     $("draw-cat").textContent = state.wordCat;
+    const den = $("draw-en");
+    if (state.wordEn) { den.textContent = `“${state.wordEn}”`; den.classList.remove("hidden"); }
+    else den.classList.add("hidden");
     updateScores();
     state.timeLeft = state.timeLimit;
     tick();
@@ -293,9 +369,12 @@ function endRound(guessed) {
     $("result-title").textContent = guessed
       ? `Point for ${state.names[state.drawer]}!`
       : "Time's up!";
+    const answer = state.wordEn
+      ? `"${cap(state.word)}" — “${state.wordEn}”`
+      : `"${cap(state.word)}"`;
     $("result-sub").textContent = guessed
-      ? `Nice drawing — "${cap(state.word)}" it was.`
-      : `The word was "${cap(state.word)}". No point this time.`;
+      ? `Nice drawing — ${answer} it was.`
+      : `The word was ${answer}. No point this time.`;
     $("btn-next").textContent = `Next: ${state.names[1 - state.drawer]} draws →`;
     $("btn-next").style.display = "";
     show("screen-result");
@@ -473,7 +552,7 @@ $("btn-online-start").addEventListener("click", () => {
   net.db.ref(`rooms/${net.code}/guesses`).remove();
   net.gameRef.set({
     phase: "reveal", round: 1, drawerId: net.pid,
-    scores: {}, word: "", wordCat: "", result: null, roundStartAt: 0,
+    scores: {}, word: "", wordCat: "", wordEn: "", result: null, roundStartAt: 0,
     settings: net.settings
   });
 });
@@ -498,8 +577,8 @@ function netShowReveal(g) {
     if (!g.word) {
       state.cats = Object.keys(WORDS);
       buildDeck(); drawWord();
-      net.gameRef.update({ word: state.word, wordCat: state.wordCat });
-    } else { state.word = g.word; state.wordCat = g.wordCat; }
+      net.gameRef.update({ word: state.word, wordCat: state.wordCat, wordEn: state.wordEn });
+    } else { state.word = g.word; state.wordCat = g.wordCat; state.wordEn = g.wordEn || ""; }
     $("reveal-online-wait").classList.add("hidden");
     $("reveal-hidden").classList.remove("hidden");
     $("reveal-shown").classList.add("hidden");
@@ -540,6 +619,10 @@ function setupDrawScreenOnline() {
     $("draw-guesser-label").classList.add("hidden");
     $("draw-word").textContent = cap(state.word || (net.game && net.game.word) || "");
     $("draw-cat").textContent = (net.game && net.game.wordCat) || "";
+    const den2 = $("draw-en");
+    const wen = state.wordEn || (net.game && net.game.wordEn) || "";
+    if (wen) { den2.textContent = `“${wen}”`; den2.classList.remove("hidden"); }
+    else den2.classList.add("hidden");
     $("tools").style.display = "";
     $("btn-undo").style.display = "none";
     $("guesser-bar").classList.add("hidden");
@@ -586,7 +669,7 @@ function netEndRound(guessed, byName) {
   net.gameRef.update({
     phase: lastRound ? "over" : "result",
     scores,
-    result: { guessed, by: byName, word: g.word }
+    result: { guessed, by: byName, word: g.word, wordEn: g.wordEn || "" }
   });
 }
 function netShowResult(g) {
@@ -594,9 +677,10 @@ function netShowResult(g) {
   const r = g.result || {};
   $("result-emoji").textContent = r.guessed ? "🎉" : "⏰";
   $("result-title").textContent = r.guessed ? `Point for ${r.by}!` : "Time's up!";
+  const answer = r.wordEn ? `"${cap(r.word || "")}" — “${r.wordEn}”` : `"${cap(r.word || "")}"`;
   $("result-sub").textContent = r.guessed
-    ? `Nice drawing — "${cap(r.word || "")}" it was.`
-    : `The word was "${cap(r.word || "")}". No point this time.`;
+    ? `Nice drawing — ${answer} it was.`
+    : `The word was ${answer}. No point this time.`;
   const btn = $("btn-next");
   if (net.isDrawer) {
     btn.style.display = "";
@@ -618,7 +702,7 @@ function netNextRound() {
   net.db.ref(`rooms/${net.code}/guesses`).remove();
   net.gameRef.update({
     phase: "reveal", round: g.round + 1, drawerId: other,
-    word: "", wordCat: "", result: null, roundStartAt: 0
+    word: "", wordCat: "", wordEn: "", result: null, roundStartAt: 0
   });
 }
 function netSkip() {
@@ -652,7 +736,7 @@ function netPlayAgain() {
   net.db.ref(`rooms/${net.code}/guesses`).remove();
   net.gameRef.set({
     phase: "reveal", round: 1, drawerId: net.pid,
-    scores: {}, word: "", wordCat: "", result: null, roundStartAt: 0,
+    scores: {}, word: "", wordCat: "", wordEn: "", result: null, roundStartAt: 0,
     settings: net.settings
   });
 }
@@ -694,8 +778,7 @@ function attachNetListeners() {
     if (!gu) return;
     addGuessFeed(gu);
     if (net.isDrawer && net.game && net.game.phase === "draw" && !gu.correct) {
-      const norm = (t) => t.toLowerCase().trim();
-      if (norm(gu.text) === norm(net.game.word)) {
+      if (normTxt(gu.text) === normTxt(net.game.word)) {
         net.db.ref(base + "/guesses/" + s.key).update({ correct: true });
         netEndRound(true, gu.name);
       }
