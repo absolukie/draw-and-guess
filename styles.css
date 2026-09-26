@@ -120,3 +120,43 @@ button.ghost { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255
   background: rgba(255,255,255,.08); border-radius: 14px; margin-bottom: 8px;
 }
 .frow b { font-size: 1.4rem; }
+
+/* online multiplayer */
+.btn-sub { display: block; font-size: .8rem; font-weight: 400; opacity: .75; margin-top: 4px; }
+#btn-mode-solo { margin-bottom: 4px; }
+.joinrow { display: flex; gap: 10px; margin-top: 10px; }
+.joinrow input {
+  flex: 1; font-size: 1.3rem; font-weight: 800; letter-spacing: .3em; text-align: center;
+  text-transform: uppercase; padding: 14px 8px; border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color: #fff;
+}
+.joinrow .big { width: auto; flex: 1; margin-top: 0; }
+.err { color: #ff9d9d; font-size: .9rem; margin: 10px 0 0; }
+#room-code {
+  font-size: 3rem; font-weight: 800; letter-spacing: .35em; text-align: center;
+  background: rgba(124,92,255,.25); border: 1px dashed #7c5cff; border-radius: 18px;
+  padding: 14px 0 14px .35em; margin: 6px 0 4px;
+}
+.lobby-players { margin: 14px 0; }
+.lobby-player {
+  font-size: 1.1rem; padding: 10px 16px; background: rgba(255,255,255,.08);
+  border-radius: 14px; margin-bottom: 8px;
+}
+#btn-online-start:disabled { opacity: .5; }
+#guess-feed {
+  max-height: 110px; overflow-y: auto; margin: 8px 0; display: flex; flex-direction: column; gap: 4px;
+}
+.guess {
+  font-size: .9rem; background: rgba(255,255,255,.08); border-radius: 10px; padding: 6px 12px;
+}
+.guess.correct { background: rgba(56,211,159,.3); border: 1px solid #38d39f; font-weight: 700; }
+#guesser-bar { display: flex; gap: 8px; margin: 4px 0 8px; }
+#guesser-bar.hidden { display: none; }
+#guess-input {
+  flex: 1; font-size: 1rem; padding: 14px; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color: #fff;
+}
+#btn-guess {
+  padding: 0 22px; border: none; border-radius: 14px; font-size: 1rem; font-weight: 700;
+  color: #fff; background: linear-gradient(135deg, #7c5cff, #b04dff); cursor: pointer;
+}

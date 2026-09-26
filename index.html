@@ -10,12 +10,24 @@
 <meta property="og:type" content="website">
 <title>Draw &amp; Guess — pass-and-play drawing game</title>
 <link rel="stylesheet" href="styles.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
 <div id="app">
 
-  <!-- SETUP -->
-  <section id="screen-setup" class="screen active">
+  <!-- MODE PICKER -->
+  <section id="screen-mode" class="screen active">
+    <div class="card">
+      <h1>🎨 Draw &amp; Guess</h1>
+      <p class="sub">The drawing party game. How do you want to play?</p>
+      <button id="btn-mode-solo" class="big primary">📱 Same phone<br><span class="btn-sub">Pass it back and forth</span></button>
+      <button id="btn-mode-online" class="big ghost">🌐 Online with a friend<br><span class="btn-sub">Each on your own phone</span></button>
+    </div>
+  </section>
+
+  <!-- SETUP (same phone) -->
+  <section id="screen-setup" class="screen">
     <div class="card">
       <h1>🎨 Draw &amp; Guess</h1>
       <p class="sub">One phone. Take turns drawing, the other guesses out loud.</p>
@@ -45,15 +57,65 @@
         <div class="checks" id="cat-checks"></div>
       </div>
       <button id="btn-start" class="big primary">Start game</button>
+      <button id="btn-setup-back" class="big ghost">← Back</button>
+    </div>
+  </section>
+
+  <!-- ONLINE LOBBY -->
+  <section id="screen-online" class="screen">
+    <div class="card">
+      <h1>🌐 Play online</h1>
+      <p class="sub">One of you creates a room, the other joins with the code.</p>
+      <div id="online-join-ui">
+        <div class="names">
+          <label style="flex:1">Your name <input id="online-name" maxlength="16" value="Luke" autocomplete="off"></label>
+        </div>
+        <button id="btn-create" class="big primary">Create room</button>
+        <div class="joinrow">
+          <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters">
+          <button id="btn-join" class="big primary">Join</button>
+        </div>
+        <p id="online-error" class="err hidden"></p>
+      </div>
+      <div id="lobby-room" class="hidden">
+        <p class="opt-label">Room code — share it!</p>
+        <div id="room-code">––––</div>
+        <button id="btn-copy" class="big ghost">📋 Copy invite link</button>
+        <div id="lobby-players" class="lobby-players"></div>
+        <div id="host-controls" class="hidden">
+          <div class="opt-group">
+            <span class="opt-label">Rounds</span>
+            <div class="pills" id="online-rounds">
+              <button data-v="4">4</button>
+              <button data-v="6" class="sel">6</button>
+              <button data-v="8">8</button>
+            </div>
+          </div>
+          <div class="opt-group">
+            <span class="opt-label">Seconds per drawing</span>
+            <div class="pills" id="online-time">
+              <button data-v="30">30</button>
+              <button data-v="60" class="sel">60</button>
+              <button data-v="90">90</button>
+            </div>
+          </div>
+          <button id="btn-online-start" class="big primary" disabled>Waiting for player…</button>
+        </div>
+        <p id="lobby-wait" class="sub hidden">Waiting for the host to start…</p>
+      </div>
+      <button id="btn-online-back" class="big ghost">← Back</button>
     </div>
   </section>
 
   <!-- WORD REVEAL -->
   <section id="screen-reveal" class="screen">
     <div class="card">
-      <p class="pass">📱 Hand the phone to</p>
-      <h2 id="reveal-drawer">Luke</h2>
-      <p class="warn">Guesser, look away! 🙈</p>
+      <div id="reveal-solo">
+        <p class="pass">📱 Hand the phone to</p>
+        <h2 id="reveal-drawer">Luke</h2>
+        <p class="warn">Guesser, look away! 🙈</p>
+      </div>
+      <p id="reveal-online-wait" class="sub hidden"></p>
       <div id="reveal-hidden">
         <button id="btn-reveal" class="big primary">Tap to reveal your word</button>
       </div>
@@ -75,6 +137,7 @@
       <span id="draw-scores">0 – 0</span>
     </div>
     <div id="secret-word"><span id="draw-word">Pizza</span><span id="draw-cat" class="cat-tag">Food</span></div>
+    <p id="draw-guesser-label" class="sub hidden" style="text-align:center;margin:6px 0"></p>
     <div id="canvas-wrap"><canvas id="canvas"></canvas></div>
     <div id="tools">
       <div id="colors"></div>
@@ -85,6 +148,11 @@
       </div>
       <button id="btn-undo" title="Undo">↩️</button>
       <button id="btn-clear" title="Clear">🗑️</button>
+    </div>
+    <div id="guess-feed" class="hidden"></div>
+    <div id="guesser-bar" class="hidden">
+      <input id="guess-input" maxlength="30" placeholder="Type your guess…" autocomplete="off">
+      <button id="btn-guess" class="primary">Guess</button>
     </div>
     <div id="draw-actions">
       <button id="btn-skip" class="big ghost">Skip</button>
@@ -110,6 +178,7 @@
       <div id="over-scores" class="final-scores"></div>
       <button id="btn-again" class="big primary">Play again</button>
       <button id="btn-new" class="big ghost">New setup</button>
+      <p id="over-wait" class="sub hidden">Waiting for the host…</p>
     </div>
   </section>
 
